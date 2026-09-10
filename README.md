@@ -31,6 +31,8 @@ Initial species counts are configurable for tests and small experiments without 
 - Human: 60
 - Carnivore: 30
 
+Initial placement enforces a one-cell-one-agent invariant. Clustered animal placement retries occupied coordinates and falls back to the nearest free coordinate if necessary; initialization rejects a population larger than the grid capacity.
+
 A headless run can be reproduced with the same seed:
 
 ```bash
@@ -38,6 +40,12 @@ python src/headless.py --seed 7 --steps 100 --log-dir ./run-7
 ```
 
 The command prints a compact JSON summary after the requested number of steps.
+
+## Reproduction semantics
+
+Mate candidates are intentionally **not pre-filtered by species**. If a selected partner belongs to another species, the interaction is treated as a failed cross-species mating attempt: both participants still pay the configured cooldown, energy, and fatigue costs, no offspring are produced, and the simulation increments `hybrid_attempts`.
+
+This is a deliberate model rule used to measure unsuccessful cross-species mating attempts, not an accidental omission of a species filter.
 
 ## Run the visual simulation
 
