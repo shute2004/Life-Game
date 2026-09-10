@@ -1,0 +1,14 @@
+.venv/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.DS_Store
+
+# Simulation outputs
+log/
+*.csv
+
+# Analysis / generated artifacts are intentionally not part of the public snapshot
+analysis/
+archive/
