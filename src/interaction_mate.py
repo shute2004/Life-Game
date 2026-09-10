@@ -17,7 +17,14 @@ class InteractionMate:
         occupied_positions: Set[Tuple[int, int]],
         pos_to_cell: Dict[Tuple[int, int], Cell],
         next_id_gen,
-    ) -> Tuple[List[Cell], Optional[Cell], bool, int]:
+    ) -> Tuple[List[Cell], Optional[Cell], bool, int, bool]:
+        """Process one mating interaction.
+
+        Returns ``(children, dead_female, attempted, litter_size,
+        cross_species_attempt)``. ``attempted`` means that a partner was
+        selected and interaction costs were paid; it does not imply offspring
+        were produced.
+        """
         best_partner: Optional[Cell] = None
         best_score = -float("inf")
         for male in male_candidates:
@@ -35,7 +42,7 @@ class InteractionMate:
                 best_partner = male
 
         if best_partner is None:
-            return [], None, False, 0
+            return [], None, False, 0, False
 
         female_cooldown = 300 if female.species == config.SPECIES_HUMAN else 250 if female.species == config.SPECIES_CARNIVORE else 150
         male_cooldown = 300 if best_partner.species == config.SPECIES_HUMAN else 250 if best_partner.species == config.SPECIES_CARNIVORE else 150
@@ -54,7 +61,7 @@ class InteractionMate:
             best_partner.update_memory(female.id, male_prior * 0.2)
 
         if female.species != best_partner.species:
-            return [], None, False, 0
+            return [], None, True, 0, True
 
         child_count = random.choices([1, 2, 3, 4, 5], weights=config.LITTER_PROBS, k=1)[0]
         maternal_death = random.random() < config.MATERNAL_DEATH_PROBS[child_count - 1]
@@ -125,4 +132,4 @@ class InteractionMate:
             pos_to_cell.pop((female.x, female.y), None)
             maternal_dead_cell = female
 
-        return placed, maternal_dead_cell, True, child_count
+        return placed, maternal_dead_cell, True, child_count, False
