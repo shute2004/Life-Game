@@ -39,6 +39,69 @@ class SimulationSetup:
             with open(path, "w", encoding="utf-8") as file:
                 file.write(header)
 
+    @staticmethod
+    def _free_positions(occupied: set[tuple[int, int]]) -> list[tuple[int, int]]:
+        return [
+            (x, y)
+            for x in range(config.GRID_W)
+            for y in range(config.GRID_H)
+            if (x, y) not in occupied
+        ]
+
+    @classmethod
+    def _choose_plant_position(
+        cls,
+        env,
+        occupied: set[tuple[int, int]],
+        max_diagonal: float,
+    ) -> tuple[int, int]:
+        # Fast rejection sampling preserves the original volcano-distance bias.
+        for _ in range(10_000):
+            x = random.randint(0, config.GRID_W - 1)
+            y = random.randint(0, config.GRID_H - 1)
+            if (x, y) in occupied:
+                continue
+            distance = np.sqrt((x - env.base_cx) ** 2 + (y - env.base_cy) ** 2)
+            probability = max(0.05, 1.0 - distance / max_diagonal)
+            if random.random() < probability:
+                return x, y
+
+        # At very high occupancy, choose among the remaining cells while
+        # retaining the same relative spatial preference instead of colliding.
+        free = cls._free_positions(occupied)
+        if not free:
+            raise ValueError("Initial population exceeds available grid cells.")
+        weights = [
+            max(
+                0.05,
+                1.0
+                - np.sqrt((x - env.base_cx) ** 2 + (y - env.base_cy) ** 2)
+                / max_diagonal,
+            )
+            for x, y in free
+        ]
+        return random.choices(free, weights=weights, k=1)[0]
+
+    @classmethod
+    def _choose_clustered_position(
+        cls,
+        center: tuple[int, int],
+        occupied: set[tuple[int, int]],
+    ) -> tuple[int, int]:
+        for _ in range(1_000):
+            x = max(0, min(config.GRID_W - 1, int(random.gauss(center[0], 10.0))))
+            y = max(0, min(config.GRID_H - 1, int(random.gauss(center[1], 10.0))))
+            if (x, y) not in occupied:
+                return x, y
+
+        free = cls._free_positions(occupied)
+        if not free:
+            raise ValueError("Initial population exceeds available grid cells.")
+        return min(
+            free,
+            key=lambda pos: (pos[0] - center[0]) ** 2 + (pos[1] - center[1]) ** 2,
+        )
+
     @classmethod
     def spawn_initial_life(
         cls,
@@ -56,7 +119,15 @@ class SimulationSetup:
         for species in DEFAULT_SPECIES_COUNTS:
             counts.setdefault(species, 0)
 
+        total_requested = sum(counts.values())
+        capacity = config.GRID_W * config.GRID_H
+        if total_requested > capacity:
+            raise ValueError(
+                f"Initial population ({total_requested}) exceeds grid capacity ({capacity})."
+            )
+
         cells: list[Cell] = []
+        occupied: set[tuple[int, int]] = set()
         next_id = next_id_start
         max_diagonal = float(np.sqrt(config.GRID_W**2 + config.GRID_H**2))
 
@@ -74,19 +145,12 @@ class SimulationSetup:
         for species, count in counts.items():
             for _ in range(count):
                 if species == config.SPECIES_PLANT:
-                    while True:
-                        rx = random.randint(0, config.GRID_W - 1)
-                        ry = random.randint(0, config.GRID_H - 1)
-                        distance = np.sqrt((rx - env.base_cx) ** 2 + (ry - env.base_cy) ** 2)
-                        probability = max(0.05, 1.0 - distance / max_diagonal)
-                        if random.random() < probability:
-                            x, y = rx, ry
-                            break
+                    x, y = cls._choose_plant_position(env, occupied, max_diagonal)
                 else:
                     center = random.choice(cluster_centers[species])
-                    x = max(0, min(config.GRID_W - 1, int(random.gauss(center[0], 10.0))))
-                    y = max(0, min(config.GRID_H - 1, int(random.gauss(center[1], 10.0))))
+                    x, y = cls._choose_clustered_position(center, occupied)
 
+                occupied.add((x, y))
                 cell = Cell(
                     cell_id=next_id,
                     x=x,
@@ -115,4 +179,5 @@ class SimulationSetup:
                 cells.append(cell)
                 next_id += 1
 
+        assert len(occupied) == len(cells)
         return cells, next_id
