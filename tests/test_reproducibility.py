@@ -1,9 +1,12 @@
 from pathlib import Path
+import random
 
 import pytest
 
 import config
+from environment import Environment
 from simulation import Simulation
+from simulation_setup import SimulationSetup
 
 
 SMALL_COUNTS = {
@@ -67,6 +70,46 @@ def test_initial_species_counts_are_injectable(tmp_path: Path) -> None:
     assert summary["herbivore"] == 4
     assert summary["human"] == 3
     assert summary["carnivore"] == 2
+
+
+def test_initial_positions_are_unique(tmp_path: Path) -> None:
+    simulation = Simulation(
+        seed=31,
+        species_counts=SMALL_COUNTS,
+        log_dir=str(tmp_path / "unique"),
+    )
+    positions = {(cell.x, cell.y) for cell in simulation.cells}
+    assert len(positions) == len(simulation.cells)
+
+
+def test_clustered_high_density_initialization_still_has_unique_positions() -> None:
+    random.seed(101)
+    env = Environment()
+    cells, _ = SimulationSetup.spawn_initial_life(
+        env,
+        species_counts={
+            config.SPECIES_PLANT: 0,
+            config.SPECIES_HERBIVORE: 900,
+            config.SPECIES_HUMAN: 300,
+            config.SPECIES_CARNIVORE: 200,
+        },
+    )
+    positions = {(cell.x, cell.y) for cell in cells}
+    assert len(positions) == len(cells) == 1_400
+
+
+def test_rejects_initial_population_above_grid_capacity() -> None:
+    env = Environment()
+    with pytest.raises(ValueError, match="exceeds grid capacity"):
+        SimulationSetup.spawn_initial_life(
+            env,
+            species_counts={
+                config.SPECIES_PLANT: config.GRID_W * config.GRID_H + 1,
+                config.SPECIES_HERBIVORE: 0,
+                config.SPECIES_HUMAN: 0,
+                config.SPECIES_CARNIVORE: 0,
+            },
+        )
 
 
 def test_gold_is_conserved_across_steps(tmp_path: Path) -> None:
