@@ -1,0 +1,45 @@
+[project]
+name = "life-sim"
+version = "0.1.0"
+description = "Bottom-up artificial-life simulation for emergent ecology, evolution, and social behavior"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=2.0",
+  "pygame>=2.6.1",
+]
+license = { text = "UNLICENSED" }
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = [
+  "cell",
+  "cell_genetics",
+  "cell_navigator",
+  "cell_vitality",
+  "config",
+  "environment",
+  "interaction",
+  "interaction_combat",
+  "interaction_give",
+  "interaction_mate",
+  "main",
+  "simulation",
+  "simulation_gene_analyzer",
+  "simulation_setup",
+  "simulation_theft_detector",
+  "simulation_voice_analyzer",
+  "stats_logger",
+  "headless",
+]
+package-dir = { "" = "src" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
