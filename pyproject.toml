@@ -25,7 +25,6 @@ py-modules = [
   "cell_vitality",
   "config",
   "environment",
-  "interaction",
   "interaction_combat",
   "interaction_give",
   "interaction_mate",
