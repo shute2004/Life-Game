@@ -17,13 +17,14 @@ class InteractionMate:
         occupied_positions: Set[Tuple[int, int]],
         pos_to_cell: Dict[Tuple[int, int], Cell],
         next_id_gen,
-    ) -> Tuple[List[Cell], Optional[Cell], bool, int, bool]:
+    ) -> Tuple[List[Cell], Optional[Cell], bool, int]:
         """Process one mating interaction.
 
-        Returns ``(children, dead_female, attempted, litter_size,
-        cross_species_attempt)``. ``attempted`` means that a partner was
-        selected and interaction costs were paid; it does not imply offspring
-        were produced.
+        ``success`` means the selected interaction reached a modeled mating
+        outcome. A cross-species attempt is intentionally reported as
+        ``success=True`` with no children so the simulation can count it in
+        ``hybrid_attempts``. A same-species pair with no free adjacent birth
+        position is not classified as a hybrid attempt.
         """
         best_partner: Optional[Cell] = None
         best_score = -float("inf")
@@ -42,7 +43,7 @@ class InteractionMate:
                 best_partner = male
 
         if best_partner is None:
-            return [], None, False, 0, False
+            return [], None, False, 0
 
         female_cooldown = 300 if female.species == config.SPECIES_HUMAN else 250 if female.species == config.SPECIES_CARNIVORE else 150
         male_cooldown = 300 if best_partner.species == config.SPECIES_HUMAN else 250 if best_partner.species == config.SPECIES_CARNIVORE else 150
@@ -60,14 +61,12 @@ class InteractionMate:
         if male_prior > 0.0:
             best_partner.update_memory(female.id, male_prior * 0.2)
 
+        # Deliberate model rule: an attempted cross-species mating consumes
+        # interaction costs but produces no offspring. Simulation.step()
+        # classifies this successful attempt-with-zero-children as a hybrid
+        # attempt for the tracker.
         if female.species != best_partner.species:
-            return [], None, True, 0, True
-
-        child_count = random.choices([1, 2, 3, 4, 5], weights=config.LITTER_PROBS, k=1)[0]
-        maternal_death = random.random() < config.MATERNAL_DEATH_PROBS[child_count - 1]
-
-        child_energy = female.energy / (child_count + 1)
-        female.energy = child_energy
+            return [], None, True, 0
 
         candidates: List[Tuple[int, int]] = []
         for dx in (-1, 0, 1):
@@ -77,6 +76,17 @@ class InteractionMate:
                 nx, ny = female.x + dx, female.y + dy
                 if 0 <= nx < config.GRID_W and 0 <= ny < config.GRID_H and (nx, ny) not in occupied_positions:
                     candidates.append((nx, ny))
+
+        # No physical birth position is a placement failure, not a hybrid
+        # event. Costs already paid above model the unsuccessful interaction.
+        if not candidates:
+            return [], None, False, 0
+
+        child_count = random.choices([1, 2, 3, 4, 5], weights=config.LITTER_PROBS, k=1)[0]
+        maternal_death = random.random() < config.MATERNAL_DEATH_PROBS[child_count - 1]
+
+        child_energy = female.energy / (child_count + 1)
+        female.energy = child_energy
 
         scored = [
             (
@@ -132,4 +142,4 @@ class InteractionMate:
             pos_to_cell.pop((female.x, female.y), None)
             maternal_dead_cell = female
 
-        return placed, maternal_dead_cell, True, child_count, False
+        return placed, maternal_dead_cell, True, child_count
